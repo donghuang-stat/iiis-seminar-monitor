@@ -1,0 +1,23 @@
+name: Daily Seminar Check
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # 每天北京时间10点执行（UTC+8）
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4
+
+      - name: Run seminar checker
+        run: python fetch_seminars.py
