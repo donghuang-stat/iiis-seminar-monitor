@@ -1,8 +1,6 @@
 import requests
 from bs4 import BeautifulSoup
 import json
-import smtplib
-from email.mime.text import MIMEText
 import os
 
 URL = "https://iiis.tsinghua.edu.cn/seminars/"
@@ -13,8 +11,7 @@ def fetch_seminars():
     response.encoding = 'utf-8'
     soup = BeautifulSoup(response.text, 'html.parser')
     seminars = []
-    rows = soup.select('tbody tr')
-
+    rows = soup.select('tr')
     for row in rows:
         cols = row.find_all('td')
         if len(cols) < 5:
@@ -25,7 +22,6 @@ def fetch_seminars():
         speaker_info = cols[2].get_text(strip=True)
         time = cols[3].text.strip()
         location = cols[4].text.strip()
-
         seminars.append({
             "number": number,
             "title": title,
@@ -36,46 +32,28 @@ def fetch_seminars():
         })
     return seminars
 
-def load_old_data():
-    if not os.path.exists(DATA_FILE):
-        return []
-    with open(DATA_FILE, 'r', encoding='utf-8') as f:
-        return json.load(f)
+def load_old():
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return []
 
-def save_data(data):
+def save_new(data):
     with open(DATA_FILE, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
-def send_email(new_items):
-    sender = os.environ["EMAIL_SENDER"]
-    password = os.environ["EMAIL_PASSWORD"]
-    receiver = os.environ["EMAIL_RECEIVER"]
-
-    content = "New seminars found:\n\n"
-    for item in new_items:
-        content += f"{item['number']} - {item['title']}\n{item['link']}\n\n"
-
-    msg = MIMEText(content)
-    msg['Subject'] = 'New IIIS Seminars Detected'
-    msg['From'] = sender
-    msg['To'] = receiver
-
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-        server.login(sender, password)
-        server.sendmail(sender, receiver, msg.as_string())
-
-def main():
-    new_data = fetch_seminars()
-    old_data = load_old_data()
-    old_numbers = {s['number'] for s in old_data}
-    new_items = [s for s in new_data if s['number'] not in old_numbers]
-
-    if new_items:
-        print(f"Found {len(new_items)} new seminars.")
-        send_email(new_items)
-        save_data(new_data)
-    else:
-        print("No new seminars.")
+def detect_changes(new, old):
+    old_numbers = {x['number'] for x in old}
+    return [x for x in new if x['number'] not in old_numbers]
 
 if __name__ == "__main__":
-    main()
+    new_data = fetch_seminars()
+    old_data = load_old()
+    changes = detect_changes(new_data, old_data)
+    if changes:
+        print("🔔 New seminars found:")
+        for item in changes:
+            print(f"- [{item['number']}] {item['title']} ({item['speaker_info']})")
+    else:
+        print("✅ No new seminars.")
+    save_new(new_data)
